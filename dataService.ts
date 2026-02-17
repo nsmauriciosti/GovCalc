@@ -1,6 +1,22 @@
 
 import { Logradouro, SimulationParams, CalculoResult } from './types';
-import { CR_VALOR } from './constants';
+import { 
+  CR_VALOR,
+  SITUACAO_QUADRA,
+  TOPOGRAFIA,
+  PEDOLOGIA,
+  PAVIMENTACAO,
+  MELHORAMENTOS,
+  TIPO_OCUPACAO,
+  PADRAO_CONSTRUTIVO,
+  ELEMENTO_CONSTRUTIVO,
+  CONDOMINIO_VERTICAL
+} from './constants';
+
+const getMultiplier = (list: { value: string, multiplier: number }[], selectedValue: string, defaultVal: number): number => {
+  const item = list.find(i => i.value === selectedValue);
+  return item ? item.multiplier : defaultVal;
+};
 
 /**
  * Cálculos baseados na Planta de Valores Genéricos (PVG) de Nova Serrana/MG
@@ -11,6 +27,17 @@ export const calculateIPTU = (params: SimulationParams): CalculoResult => {
   if (!logradouro) {
     return { vvt: 0, vc: 0, vvi: 0, fatoresTerreno: {}, fatoresConstrucao: {} };
   }
+
+  // Resolução dos multiplicadores numéricos a partir das strings selecionadas
+  const mFsq = getMultiplier(SITUACAO_QUADRA, fsq, 1.0);
+  const mFtop = getMultiplier(TOPOGRAFIA, ftop, 1.0);
+  const mFpd = getMultiplier(PEDOLOGIA, fpd, 1.0);
+  const mFpav = getMultiplier(PAVIMENTACAO, fpav, 1.0);
+  const mFmp = getMultiplier(MELHORAMENTOS, fmp, 1.0);
+  const mFto = getMultiplier(TIPO_OCUPACAO, fto, 1.0);
+  const mFpc = getMultiplier(PADRAO_CONSTRUTIVO, fpc, 1.0);
+  const mFec = getMultiplier(ELEMENTO_CONSTRUTIVO, fec, 1.0);
+  const mFcv = getMultiplier(CONDOMINIO_VERTICAL, fcv, 1.0);
 
   // F1 = FATOR DE TESTADA (Ft) - Raiz Quarta conforme norma técnica
   const testadaPadrao = 12.00;
@@ -35,11 +62,11 @@ export const calculateIPTU = (params: SimulationParams): CalculoResult => {
   const vmq = logradouro.vu_pvg;
 
   // Vvt = At x Vmq x (Ft x Fa x fsq x ftop x fpd x fpav x fmp x fto) * fat * rapp
-  const f_prod = ft * fa * fsq * ftop * fpd * fpav * fmp * fto;
+  const f_prod = ft * fa * mFsq * mFtop * mFpd * mFpav * mFmp * mFto;
   const vvt = (at * vmq * f_prod) * (fat || 1.0) * rapp;
 
   // Vc = Acb x Cr x Fpc x Fec x Fcv
-  const vc = acb * CR_VALOR * fpc * fec * fcv;
+  const vc = acb * CR_VALOR * mFpc * mFec * mFcv;
 
   // Vvi = (Vvt + Vc) * Favi
   const vvi = (vvt + vc) * (favi || 1.0);
@@ -48,8 +75,8 @@ export const calculateIPTU = (params: SimulationParams): CalculoResult => {
     vvt,
     vc,
     vvi,
-    fatoresTerreno: { ft, fa, fsq, ftop, fpd, fpav, fmp, fto, fat, rapp },
-    fatoresConstrucao: { fpc, fec, fcv, favi }
+    fatoresTerreno: { ft, fa, fsq: mFsq, ftop: mFtop, fpd: mFpd, fpav: mFpav, fmp: mFmp, fto: mFto, fat, rapp },
+    fatoresConstrucao: { fpc: mFpc, fec: mFec, fcv: mFcv, favi }
   };
 };
 

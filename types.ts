@@ -21,18 +21,18 @@ export interface SimulationParams {
   app: number;     // Área de preservação permanente
   logradouro?: Logradouro;
   
-  // Fatores de Terreno
-  fsq: number;     // Situação na quadra (F3)
-  ftop: number;    // Topografia (F4)
-  fpd: number;     // Pedologia (F5)
-  fpav: number;    // Pavimentação (F6)
-  fmp: number;     // Melhoramentos públicos (F7)
-  fto: number;     // Tipo de ocupação (F8)
-  fat: number;     // Ajuste valor cadastral terreno
+  // Fatores de Terreno (agora strings para IDs únicos)
+  fsq: string;     // Situação na quadra (F3)
+  ftop: string;    // Topografia (F4)
+  fpd: string;     // Pedologia (F5)
+  fpav: string;    // Pavimentação (F6)
+  fmp: string;     // Melhoramentos públicos (F7)
+  fto: string;     // Tipo de ocupação (F8)
+  fat: number;     // Ajuste valor cadastral terreno (Permanece número pois é input direto)
   
   // Fatores de Construção
-  fpc: number;     // Padrão construtivo
-  fec: number;     // Elemento construtivo
-  fcv: number;     // Condomínio vertical
-  favi: number;    // Ajuste cadastral imóvel
+  fpc: string;     // Padrão construtivo
+  fec: string;     // Elemento construtivo
+  fcv: string;     // Condomínio vertical
+  favi: number;    // Ajuste cadastral imóvel (Permanece número pois é input direto)
 }

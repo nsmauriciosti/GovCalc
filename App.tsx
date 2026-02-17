@@ -22,6 +22,40 @@ import { calculateIPTU, searchLogradouros, MOCK_LOGRADOUROS } from './dataServic
 
 declare const XLSX: any;
 
+// Helper para normalizar strings (remover acentos e espaços extras)
+const normalizeHeader = (s: string) => 
+  String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
+// Helper robusto para converter strings de diversos formatos para número
+const parseFlexibleNumber = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  
+  let s = String(val).replace('R$', '').trim();
+  
+  // Se houver vírgula e ponto (ex: 1.234,56), assumimos formato brasileiro de milhar
+  if (s.includes(',') && s.includes('.')) {
+    // Removemos todos os pontos (milhares) e trocamos a vírgula por ponto (decimal)
+    return parseFloat(s.split('.').join('').replace(',', '.'));
+  }
+  
+  // Se houver apenas vírgula (ex: 265,02), trocamos por ponto
+  if (s.includes(',')) {
+    return parseFloat(s.replace(',', '.'));
+  }
+  
+  // Caso contrário (ex: 265.02 ou 26502), parse direto
+  return parseFloat(s);
+};
+
+// Mapeamento de possíveis nomes de colunas (aliases)
+const COLUMN_ALIASES = {
+  codigo: ['codlog', 'codigologradouro', 'codigo', 'cod', 'id'],
+  nome: ['nomelogradouro', 'nome', 'logradouro', 'rua', 'avenida', 'via'],
+  sequencia: ['seq', 'sequencia', 'item', 'ordem'],
+  vu_pvg: ['vupvg', 'vupvg2024', 'valorunitario', 'valorm2', 'vmq', 'valor']
+};
+
 // Componente para exibir ícone de ajuda com tooltip explicativo
 const InfoIcon: React.FC<{ tooltip: string }> = ({ tooltip }) => (
   <div className="group relative inline-block ml-1">
@@ -34,6 +68,83 @@ const InfoIcon: React.FC<{ tooltip: string }> = ({ tooltip }) => (
     </div>
   </div>
 );
+
+// Componente Modal de Ajuda
+const HelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in duration-300">
+        <div className="sticky top-0 bg-white px-8 py-6 border-b border-gray-100 flex justify-between items-center z-10">
+          <h2 className="text-2xl font-black text-gray-900">Metodologia de Cálculo</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className="p-8 space-y-8 text-gray-700 leading-relaxed">
+          <section>
+            <h3 className="text-lg font-bold text-blue-600 mb-2 flex items-center">
+              <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mr-3 text-sm">01</span>
+              Valor Venal do Terreno (VVT)
+            </h3>
+            <p className="text-sm mb-4">O cálculo do terreno é o produto da área pela valorização do logradouro, ajustado por fatores físicos:</p>
+            <div className="bg-gray-50 p-4 rounded-xl font-mono text-xs border border-gray-100">
+              VVT = At x Vmq x (Ft x Fa x Fsq x Ftop x Fpd x Fpav x Fmp x Fto) x Fat x Rapp
+            </div>
+            <ul className="mt-4 space-y-2 text-xs list-disc pl-5">
+              <li><strong>Vmq:</strong> Valor do m² definido na Planta de Valores Genéricos.</li>
+              <li><strong>Ft (Fator Testada):</strong> Raiz quarta de (Testada real / 12m). Limites: 0.50 a 1.50.</li>
+              <li><strong>Fa (Fator Área):</strong> Regressão logarítmica. Lotes maiores possuem valor unitário menor.</li>
+              <li><strong>Rapp:</strong> Redutor de até 80% para áreas de preservação permanente comprovadas.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-green-600 mb-2 flex items-center">
+              <span className="w-8 h-8 rounded-lg bg-green-100 text-green-600 flex items-center justify-center mr-3 text-sm">02</span>
+              Valor Venal da Construção (VC)
+            </h3>
+            <p className="text-sm mb-4">Calculado com base no custo de reprodução e padrão construtivo:</p>
+            <div className="bg-gray-50 p-4 rounded-xl font-mono text-xs border border-gray-100">
+              VC = Acb x Cr x Fpc x Fec x Fcv
+            </div>
+            <ul className="mt-4 space-y-2 text-xs list-disc pl-5">
+              <li><strong>Cr (Custo de Referência):</strong> {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(CR_VALOR)}/m².</li>
+              <li><strong>Fpc (Padrão):</strong> Multiplicador conforme a qualidade da obra (Luxo, Normal, Baixo, Popular).</li>
+              <li><strong>Fcv (Verticalização):</strong> Aplicado apenas em apartamentos e unidades em prédios.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-indigo-600 mb-2 flex items-center">
+              <span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3 text-sm">03</span>
+              Dicas de Importação
+            </h3>
+            <p className="text-sm mb-2">Para evitar erros de valores em milhar, certifique-se de que sua planilha:</p>
+            <ul className="mt-4 space-y-2 text-xs list-disc pl-5">
+              <li>Usa vírgula para decimais (ex: 265,02).</li>
+              <li>Não usa pontos para milhares (preferencialmente).</li>
+              <li>O sistema limpa automaticamente o prefixo "R$".</li>
+            </ul>
+          </section>
+        </div>
+
+        <div className="p-6 border-t border-gray-100 flex justify-end">
+          <button 
+            onClick={onClose}
+            className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors"
+          >
+            Entendi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Wrapper para seções do formulário
 const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -64,7 +175,7 @@ const InputField: React.FC<{ label: string; name: string; type?: string; value: 
 );
 
 // Campo de seleção customizado
-const SelectField: React.FC<{ label: string; name: string; options: { label: string; value: number }[]; value: number; onChange: (e: any) => void; tooltip?: string }> = ({ label, name, options, value, onChange, tooltip }) => (
+const SelectField: React.FC<{ label: string; name: string; options: { label: string; value: string; multiplier: number }[]; value: string; onChange: (e: any) => void; tooltip?: string }> = ({ label, name, options, value, onChange, tooltip }) => (
   <div>
     <div className="flex items-center mb-1">
       <label className="block text-sm font-medium text-gray-700">{label}</label>
@@ -78,7 +189,7 @@ const SelectField: React.FC<{ label: string; name: string; options: { label: str
     >
       {options.map((opt, idx) => (
         <option key={idx} value={opt.value} className="text-gray-900 bg-white py-2">
-          {opt.label} ({opt.value.toFixed(4)})
+          {opt.label} ({Number(opt.multiplier).toFixed(4)})
         </option>
       ))}
     </select>
@@ -86,16 +197,18 @@ const SelectField: React.FC<{ label: string; name: string; options: { label: str
 );
 
 // Exibição de valores de fatores calculados
-const FactorDisplay: React.FC<{ label: string; value: number; className?: string; subtitle?: string; tooltip?: string }> = ({ label, value, className = "", subtitle, tooltip }) => (
-  <div className={`flex justify-between items-center py-2 border-b border-gray-50 last:border-0 ${className}`}>
+const FactorDisplay: React.FC<{ label: string; value: any; subtitle?: string; tooltip?: string; colorClass?: string }> = ({ label, value, subtitle, tooltip, colorClass = "text-gray-900" }) => (
+  <div className="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors px-1 rounded">
     <div className="flex flex-col">
       <div className="flex items-center">
-        <span className="text-gray-500 text-xs font-medium uppercase tracking-tight">{label}</span>
+        <span className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">{label}</span>
         {tooltip && <InfoIcon tooltip={tooltip} />}
       </div>
       {subtitle && <span className="text-[10px] text-gray-400 -mt-0.5">{subtitle}</span>}
     </div>
-    <span className="font-mono text-gray-900 text-sm font-bold">{(value || 0).toFixed(4)}</span>
+    <span className={`font-mono text-sm font-black ${colorClass}`}>
+      {Number(value || 0).toFixed(4)}
+    </span>
   </div>
 );
 
@@ -105,22 +218,23 @@ const App: React.FC = () => {
     acb: 150,
     testada: 12,
     app: 0,
-    fsq: 1.0,
-    ftop: 1.0,
-    fpd: 1.0,
-    fpav: 1.0,
-    fmp: 1.0,
-    fto: 1.0,
+    fsq: 'Meio de quadra (1 frente)',
+    ftop: 'Plano',
+    fpd: 'Firme',
+    fpav: 'Asfáltica',
+    fmp: 'Com Iluminação Pública',
+    fto: 'Comum',
     fat: 1.0,
-    fpc: 0.8969, // Normal
-    fec: 1.0,
-    fcv: 1.0,
+    fpc: '1B - Casa - Normal',
+    fec: 'Alvenaria / Concreto',
+    fcv: 'Não se aplica',
     favi: 1.0,
     logradouro: undefined
   });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [logradouros, setLogradouros] = useState<Logradouro[]>(MOCK_LOGRADOUROS);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -138,9 +252,11 @@ const App: React.FC = () => {
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+    const isNumericInput = type === 'number';
+    
     setParams(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) : value
+      [name]: isNumericInput ? parseFloat(value) : value
     }));
   }, []);
 
@@ -150,6 +266,13 @@ const App: React.FC = () => {
     setIsSearching(false);
   };
 
+  const findKeyByAlias = (rowKeys: string[], targetAliases: string[]): string | undefined => {
+    return rowKeys.find(key => {
+      const normalizedKey = normalizeHeader(key);
+      return targetAliases.some(alias => normalizeHeader(alias) === normalizedKey);
+    });
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -157,29 +280,57 @@ const App: React.FC = () => {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
-
-        const newList: Logradouro[] = data.map((row: any) => ({
-          codigo: String(row.Cod_Log || row.COD_LOG || row.codigo || ""),
-          nome: String(row.Nome_Logradouro || row.NOME_LOGRADOURO || row.nome || ""),
-          sequencia: String(row.Seq || row.SEQ || row.sequencia || ""),
-          vu_pvg: parseFloat(String(row.VU_PVG || row.vu_pvg || 0).replace(',', '.'))
-        })).filter(l => l.nome && !isNaN(l.vu_pvg));
-
-        if (newList.length > 0) {
-          setLogradouros(newList);
-          setImportStatus({ type: 'success', message: `${newList.length} logradouros importados com sucesso!` });
-        } else {
-          setImportStatus({ type: 'error', message: "Nenhum dado válido encontrado. Verifique os nomes das colunas (Cod_Log, Nome_Logradouro, Seq, VU_PVG)." });
+        const dataStr = evt.target?.result;
+        const workbook = XLSX.read(dataStr, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        
+        if (rawRows.length === 0) {
+          throw new Error("A planilha está vazia.");
         }
-      } catch (err) {
-        setImportStatus({ type: 'error', message: "Erro ao processar o arquivo. Verifique o formato .xlsx" });
+
+        const firstRowKeys = Object.keys(rawRows[0]);
+        
+        const keyMapping = {
+          codigo: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.codigo),
+          nome: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.nome),
+          sequencia: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.sequencia),
+          vu_pvg: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.vu_pvg)
+        };
+
+        if (!keyMapping.nome || !keyMapping.vu_pvg) {
+          throw new Error(`Colunas 'Nome' e 'Valor' não identificadas automaticamente.`);
+        }
+
+        const totalRows = rawRows.length;
+        const newList: Logradouro[] = rawRows.map((row: any) => {
+          const vuVal = parseFlexibleNumber(row[keyMapping.vu_pvg!]);
+          return {
+            codigo: String(keyMapping.codigo ? row[keyMapping.codigo] : ""),
+            nome: String(row[keyMapping.nome!] || "").toUpperCase().trim(),
+            sequencia: String(keyMapping.sequencia ? row[keyMapping.sequencia] : "1"),
+            vu_pvg: vuVal
+          };
+        }).filter(l => l.nome && !isNaN(l.vu_pvg) && l.vu_pvg > 0);
+
+        const successCount = newList.length;
+        const ignoredCount = totalRows - successCount;
+
+        if (successCount > 0) {
+          setLogradouros(newList);
+          setImportStatus({ 
+            type: 'success', 
+            message: `${successCount} logradouros importados com sucesso. ${ignoredCount > 0 ? `${ignoredCount} ignorados por dados inválidos.` : 'Todos os registros foram carregados.'}` 
+          });
+        } else {
+          throw new Error("Nenhum registro válido foi encontrado na planilha. Verifique os nomes das colunas e os valores.");
+        }
+      } catch (err: any) {
+        setImportStatus({ type: 'error', message: err.message || "Erro desconhecido ao ler o arquivo." });
       }
-      setTimeout(() => setImportStatus(null), 5000);
+      setTimeout(() => setImportStatus(null), 10000);
     };
     reader.readAsBinaryString(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -196,23 +347,29 @@ const App: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
-      <header className="mb-12 text-center">
-        <div className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-4">
-          Fiscal & Tributário • Nova Serrana/MG
-        </div>
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      
+      <header className="mb-12 text-center relative">
         <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Simulador de Valor Venal</h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">Importação completa da Planta de Valores Genéricos (PVG). Consulte logradouros por nome ou código fiscal.</p>
+        <p className="text-gray-600 max-w-2xl mx-auto">Consulte valores por logradouro ou importe a Planta de Valores Genéricos (PVG) oficial.</p>
+        
+        <button 
+          onClick={() => setIsHelpOpen(true)}
+          className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-semibold text-gray-600 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all shadow-sm group"
+        >
+          <svg className="w-5 h-5 text-blue-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          Metodologia de Cálculo
+        </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Coluna Esquerda: Formulário de Entrada */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Seção de Busca de Logradouro e Importação */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* LADO ESQUERDO: INPUTS */}
+        <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100" ref={searchRef}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800 flex items-center">
                 <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Localização e Vmq (Valor p/ m²)
+                Localização e Planta de Valores
               </h3>
               
               <div className="relative">
@@ -220,27 +377,27 @@ const App: React.FC = () => {
                   type="file" 
                   ref={fileInputRef} 
                   onChange={handleFileUpload} 
-                  accept=".xlsx, .xls" 
+                  accept=".xlsx, .xls, .csv" 
                   className="hidden" 
                 />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                  Importar Excel
+                  Importar Planilha
                 </button>
               </div>
             </div>
 
             {importStatus && (
-              <div className={`mb-4 p-3 rounded-lg text-sm font-medium flex items-center gap-2 ${importStatus.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+              <div className={`mb-4 p-4 rounded-xl text-sm font-medium flex items-start gap-3 animate-in slide-in-from-top duration-300 ${importStatus.type === 'success' ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-red-50 text-red-800 border border-red-100'}`}>
                 {importStatus.type === 'success' ? (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
+                  <svg className="w-5 h-5 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg>
+                  <svg className="w-5 h-5 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg>
                 )}
-                {importStatus.message}
+                <span>{importStatus.message}</span>
               </div>
             )}
             
@@ -258,7 +415,7 @@ const App: React.FC = () => {
                       setSearchTerm(e.target.value);
                       setIsSearching(true);
                     }}
-                    placeholder="Busque por nome da rua ou código (ex: Dimas Guimarães)..."
+                    placeholder="Busque por rua ou código (ex: Dimas Guimarães)..."
                     className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all shadow-sm"
                   />
                   {searchTerm && (
@@ -266,7 +423,7 @@ const App: React.FC = () => {
                       onClick={() => { setSearchTerm(''); setParams(p => ({...p, logradouro: undefined})); }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                     >
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg>
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg>
                     </button>
                   )}
                 </div>
@@ -274,9 +431,9 @@ const App: React.FC = () => {
 
               {isSearching && searchTerm.length >= 2 && (
                 <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-80 overflow-y-auto ring-1 ring-black ring-opacity-5">
-                  <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider flex justify-between">
-                    <span>{filteredLogradouros.length} logradouros encontrados</span>
-                    <span>Planta Ativa ({logradouros.length} registros)</span>
+                  <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider flex justify-between sticky top-0 border-b border-gray-100 z-10">
+                    <span>{filteredLogradouros.length} encontrados</span>
+                    <span>{logradouros.length} registros</span>
                   </div>
                   {filteredLogradouros.length > 0 ? (
                     filteredLogradouros.map((log, i) => (
@@ -286,20 +443,20 @@ const App: React.FC = () => {
                         className="w-full text-left px-4 py-4 hover:bg-blue-50 flex justify-between items-center group transition-colors border-b last:border-b-0 border-gray-50"
                       >
                         <div>
-                          <p className="font-bold text-gray-900 group-hover:text-blue-700">{log.nome}</p>
-                          <p className="text-xs text-gray-500">Cod_Log: {log.codigo} • Seq: {log.sequencia}</p>
+                          <p className="font-bold text-gray-900 group-hover:text-blue-700 uppercase">{log.nome}</p>
+                          <p className="text-xs text-gray-500">Cód: {log.codigo || 'S/N'} • Seq: {log.sequencia || '0'}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-black text-blue-600">{formatCurrency(log.vu_pvg)}/m²</p>
-                          <p className="text-[10px] text-gray-400 font-medium">VU_PVG</p>
+                          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">VU_PVG</p>
                         </div>
                       </button>
                     ))
                   ) : (
                     <div className="p-8 text-center">
                       <svg className="mx-auto h-12 w-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      <p className="text-gray-500 font-medium">Logradouro não localizado.</p>
-                      <p className="text-xs text-gray-400 mt-1">Tente importar a planilha completa usando o botão acima.</p>
+                      <p className="text-gray-500 font-medium">Não localizado.</p>
+                      <p className="text-xs text-gray-400 mt-1">Verifique os nomes e tente importar novamente.</p>
                     </div>
                   )}
                 </div>
@@ -309,99 +466,134 @@ const App: React.FC = () => {
             {params.logradouro ? (
               <div className="mt-6 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex-1">
-                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest block mb-1">Logradouro Ativo</span>
-                  <h4 className="text-lg font-extrabold text-blue-900 leading-tight">{params.logradouro.nome}</h4>
-                  <p className="text-sm text-blue-700">Cod: {params.logradouro.codigo} (Sequência {params.logradouro.sequencia})</p>
+                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest block mb-1">Selecionado</span>
+                  <h4 className="text-lg font-extrabold text-blue-900 leading-tight uppercase">{params.logradouro.nome}</h4>
+                  <p className="text-sm text-blue-700 opacity-75">Cód: {params.logradouro.codigo || 'N/A'} (Seq: {params.logradouro.sequencia || '0'})</p>
                 </div>
-                <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-blue-200">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Valor Unitário PVG (m²)</span>
+                <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-blue-200 text-right">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">VU Logradouro</span>
                   <p className="text-2xl font-black text-blue-600 tracking-tight">{formatCurrency(params.logradouro.vu_pvg)}</p>
                 </div>
               </div>
             ) : (
-              <div className="mt-6 p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center">
-                <p className="text-gray-400 font-medium italic">Inicie a simulação buscando um logradouro acima.</p>
+              <div className="mt-6 p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center bg-gray-50/50">
+                <p className="text-gray-400 font-medium italic">Pesquise uma rua acima para iniciar o cálculo.</p>
               </div>
             )}
           </div>
 
           <FormSection title="Características do Terreno">
             <InputField label="Área Total (At) m²" name="at" value={params.at} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f2} />
-            <InputField label="Testada (Ft) m" name="testada" value={params.testada} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f1} />
-            <InputField label="Área Preservada (App) m²" name="app" value={params.app} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.rapp} />
+            <InputField label="Testada Principal (m)" name="testada" value={params.testada} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f1} />
+            <InputField label="Área de APP (m²)" name="app" value={params.app} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.rapp} />
             <SelectField label="F3 - Situação na Quadra" name="fsq" options={SITUACAO_QUADRA} value={params.fsq} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f3} />
-            <SelectField label="F4 - Topografia" name="ftop" options={TOPOGRAFIA} value={params.ftop} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f4} />
-            <SelectField label="F5 - Pedologia" name="fpd" options={PEDOLOGIA} value={params.fpd} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f5} />
-            <SelectField label="F6 - Pavimentação" name="fpav" options={PAVIMENTACAO} value={params.fpav} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f6} />
-            <SelectField label="F7 - Melhoramentos" name="fmp" options={MELHORAMENTOS} value={params.fmp} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f7} />
-            <SelectField label="F8 - Tipo de Ocupação" name="fto" options={TIPO_OCUPACAO} value={params.fto} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.f8} />
+            <SelectField label="F4 - Topografia" name="ftop" options={TOPOGRAFIA} value={params.ftop} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.ftop} />
+            <SelectField label="F5 - Pedologia" name="fpd" options={PEDOLOGIA} value={params.fpd} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fpd} />
+            <SelectField label="F6 - Pavimentação" name="fpav" options={PAVIMENTACAO} value={params.fpav} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fpav} />
+            <SelectField label="F7 - Melhoramentos" name="fmp" options={MELHORAMENTOS} value={params.fmp} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fmp} />
+            <SelectField label="F8 - Tipo de Ocupação" name="fto" options={TIPO_OCUPACAO} value={params.fto} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fto} />
           </FormSection>
 
-          <FormSection title="Fatores de Construção">
+          <FormSection title="Dados da Edificação">
             <SelectField label="Padrão Construtivo" name="fpc" options={PADRAO_CONSTRUTIVO} value={params.fpc} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fpc} />
-            <SelectField label="Elemento Construtivo" name="fec" options={ELEMENTO_CONSTRUTIVO} value={params.fec} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fec} />
-            <SelectField label="Condomínio Vertical" name="fcv" options={CONDOMINIO_VERTICAL} value={params.fcv} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fcv} />
+            <SelectField label="Estrutura Dominante" name="fec" options={ELEMENTO_CONSTRUTIVO} value={params.fec} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fec} />
+            <SelectField label="Coef. Verticalização" name="fcv" options={CONDOMINIO_VERTICAL} value={params.fcv} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fcv} />
             <InputField label="Área Construída (Acb) m²" name="acb" value={params.acb} onChange={handleInputChange} />
-            <InputField label="Ajuste Terreno (Fat)" name="fat" value={params.fat} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fat} />
-            <InputField label="Ajuste Imóvel (Favi)" name="favi" value={params.favi} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.favi} />
+            <InputField label="Fator Ajuste Terreno (Fat)" name="fat" value={params.fat} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.fat} />
+            <InputField label="Fator Ajuste Imóvel (Favi)" name="favi" value={params.favi} onChange={handleInputChange} tooltip={FACTOR_EXPLANATIONS.favi} />
           </FormSection>
         </div>
 
-        {/* Coluna Direita: Resultados e Detalhamento */}
-        <div className="space-y-6">
-          <div className="bg-gray-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
+        {/* LADO DIREITO: RESULTADOS (DASHBOARD) */}
+        <div className="space-y-6 lg:sticky lg:top-8 self-start">
+          
+          {/* CARD PRINCIPAL - VALOR TOTAL */}
+          <div className="bg-gray-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden ring-1 ring-white/10">
             <div className="absolute top-0 right-0 p-4 opacity-10">
-              <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" /></svg>
+              <svg className="w-20 h-20" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" /></svg>
             </div>
-            
-            <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-6">Valor Venal Estimado</h3>
-            
-            <div className="mb-8">
-              <span className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Total do Imóvel (Vvi)</span>
-              <div className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+            <h3 className="text-blue-400 text-xs font-black uppercase tracking-widest mb-2">Simulação Final</h3>
+            <div className="mb-2">
+              <span className="text-[10px] text-gray-400 font-bold uppercase block">Valor Venal do Imóvel (VVI)</span>
+              <div className="text-4xl font-black tracking-tighter text-white">
                 {formatCurrency(results.vvi)}
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-6 border-t border-gray-800">
-              <div className="flex justify-between items-end">
-                <div>
-                  <span className="text-[10px] text-gray-500 font-bold uppercase block">Do Terreno (Vvt)</span>
-                  <span className="text-lg font-bold text-gray-200">{formatCurrency(results.vvt)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-gray-500 font-bold uppercase block">Da Construção (Vc)</span>
-                  <span className="text-lg font-bold text-gray-200">{formatCurrency(results.vc)}</span>
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center">
-              <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              Detalhamento dos Fatores
-            </h4>
+          {/* CARDS SECUNDÁRIOS - VVT E VC */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-blue-100 flex flex-col justify-between">
+              <span className="text-[10px] text-blue-500 font-black uppercase tracking-wider mb-2">Terreno (VVT)</span>
+              <div className="text-lg font-black text-gray-900 leading-tight">
+                {formatCurrency(results.vvt)}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-2 font-medium">Base p/ ITBI</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-green-100 flex flex-col justify-between">
+              <span className="text-[10px] text-green-600 font-black uppercase tracking-wider mb-2">Edificação (VC)</span>
+              <div className="text-lg font-black text-gray-900 leading-tight">
+                {formatCurrency(results.vc)}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-2 font-medium">Custo Reprod.</p>
+            </div>
+          </div>
+
+          {/* DETALHAMENTO TÉCNICO - FATORES */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-gray-50/80 px-5 py-3 border-b border-gray-100">
+              <h4 className="text-xs font-black text-gray-600 uppercase tracking-widest flex items-center">
+                <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Memória de Cálculo
+              </h4>
+            </div>
+
+            <div className="p-5 space-y-6">
+              {/* GRUPO TERRENO */}
+              <div>
+                <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 pb-1 border-b border-blue-50">Fatores do Terreno</h5>
+                <div className="space-y-0.5">
+                  <FactorDisplay label="F1 - Testada (Ft)" value={results.fatoresTerreno.ft} tooltip={FACTOR_EXPLANATIONS.f1} colorClass="text-blue-700" />
+                  <FactorDisplay label="F2 - Área (Fa)" value={results.fatoresTerreno.fa} tooltip={FACTOR_EXPLANATIONS.f2} colorClass="text-blue-700" />
+                  <FactorDisplay label="F3 - Situação" value={results.fatoresTerreno.fsq} tooltip={FACTOR_EXPLANATIONS.fsq} />
+                  <FactorDisplay label="F4 - Topografia" value={results.fatoresTerreno.ftop} tooltip={FACTOR_EXPLANATIONS.ftop} />
+                  <FactorDisplay label="F5 - Pedologia" value={results.fatoresTerreno.fpd} tooltip={FACTOR_EXPLANATIONS.fpd} />
+                  <FactorDisplay label="F6 - Pavimento" value={results.fatoresTerreno.fpav} tooltip={FACTOR_EXPLANATIONS.fpav} />
+                  <FactorDisplay label="F7 - Melhoram." value={results.fatoresTerreno.fmp} tooltip={FACTOR_EXPLANATIONS.fmp} />
+                  <FactorDisplay label="F8 - Ocupação" value={results.fatoresTerreno.fto} tooltip={FACTOR_EXPLANATIONS.fto} />
+                  <FactorDisplay label="Rapp - Redutor APP" value={results.fatoresTerreno.rapp} tooltip={FACTOR_EXPLANATIONS.rapp} />
+                </div>
+              </div>
+
+              {/* GRUPO CONSTRUÇÃO */}
+              <div>
+                <h5 className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-2 pb-1 border-b border-green-50">Fatores da Construção</h5>
+                <div className="space-y-0.5">
+                  <FactorDisplay label="Padrão (Fpc)" value={results.fatoresConstrucao.fpc} tooltip={FACTOR_EXPLANATIONS.fpc} colorClass="text-green-700" />
+                  <FactorDisplay label="Estrutura (Fec)" value={results.fatoresConstrucao.fec} tooltip={FACTOR_EXPLANATIONS.fec} />
+                  <FactorDisplay label="Verticaliz. (Fcv)" value={results.fatoresConstrucao.fcv} tooltip={FACTOR_EXPLANATIONS.fcv} />
+                </div>
+              </div>
+
+              {/* AJUSTES FINAIS */}
+              <div className="pt-2">
+                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pb-1 border-b border-gray-100">Ajustes Finais</h5>
+                <div className="space-y-0.5">
+                  <FactorDisplay label="Ajuste Terr. (Fat)" value={results.fatoresTerreno.fat} tooltip={FACTOR_EXPLANATIONS.fat} />
+                  <FactorDisplay label="Ajuste Imóvel (Favi)" value={results.fatoresConstrucao.favi} tooltip={FACTOR_EXPLANATIONS.favi} />
+                </div>
+              </div>
+            </div>
             
-            <div className="space-y-1">
-              <FactorDisplay label="Ft (Testada)" value={results.fatoresTerreno.ft} tooltip={FACTOR_EXPLANATIONS.f1} />
-              <FactorDisplay label="Fa (Área)" value={results.fatoresTerreno.fa} tooltip={FACTOR_EXPLANATIONS.f2} />
-              <FactorDisplay label="Fsq (Situação)" value={results.fatoresTerreno.fsq} tooltip={FACTOR_EXPLANATIONS.f3} />
-              <FactorDisplay label="Ftop (Topografia)" value={results.fatoresTerreno.ftop} tooltip={FACTOR_EXPLANATIONS.f4} />
-              <FactorDisplay label="Fpd (Pedologia)" value={results.fatoresTerreno.fpd} tooltip={FACTOR_EXPLANATIONS.f5} />
-              <FactorDisplay label="Fpav (Pavimentação)" value={results.fatoresTerreno.fpav} tooltip={FACTOR_EXPLANATIONS.f6} />
-              <FactorDisplay label="Fmp (Melhoramentos)" value={results.fatoresTerreno.fmp} tooltip={FACTOR_EXPLANATIONS.f7} />
-              <FactorDisplay label="Fto (Ocupação)" value={results.fatoresTerreno.fto} tooltip={FACTOR_EXPLANATIONS.fto || FACTOR_EXPLANATIONS.f8} />
-              <FactorDisplay label="Fat (Ajuste Terr.)" value={results.fatoresTerreno.fat} tooltip={FACTOR_EXPLANATIONS.fat} />
-              <FactorDisplay label="Rapp (Redutor APP)" value={results.fatoresTerreno.rapp} tooltip={FACTOR_EXPLANATIONS.rapp} />
+            <div className="bg-gray-50 px-5 py-3 text-[9px] text-gray-400 font-medium italic text-center leading-tight">
+              Cálculos realizados em conformidade com a Legislação Municipal e a Planta de Valores Genéricos vigente.
             </div>
           </div>
         </div>
       </div>
 
       <footer className="mt-16 pt-8 border-t border-gray-100 text-center text-gray-400 text-xs">
-        <p>© {new Date().getFullYear()} Simulador de Valor Venal - Nova Serrana/MG</p>
-        <p className="mt-1">Importe sua planilha .xlsx com as colunas: <b>Cod_Log, Nome_Logradouro, Seq, VU_PVG</b>.</p>
+        <p>© {new Date().getFullYear()} Calculadora Tributária - Nova Serrana/MG</p>
       </footer>
     </div>
   );
