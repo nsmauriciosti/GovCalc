@@ -6,6 +6,26 @@ export interface Logradouro {
   vu_pvg: number;
 }
 
+export interface FactorOption {
+  label: string;
+  value: string;
+  multiplier: number;
+}
+
+export interface AppConfig {
+  crValor: number;
+  situacaoQuadra: FactorOption[];
+  topografia: FactorOption[];
+  pedologia: FactorOption[];
+  pavimentacao: FactorOption[];
+  melhoramentos: FactorOption[];
+  tipoOcupacao: FactorOption[];
+  padraoConstrutivo: FactorOption[];
+  elementoConstrutivo: FactorOption[];
+  condominioVertical: FactorOption[];
+  aiEnabled: boolean;
+}
+
 export interface CalculoResult {
   vvt: number; // Valor venal do terreno
   vc: number;  // Valor venal da construção
@@ -21,18 +41,18 @@ export interface SimulationParams {
   app: number;     // Área de preservação permanente
   logradouro?: Logradouro;
   
-  // Fatores de Terreno (agora strings para IDs únicos)
-  fsq: string;     // Situação na quadra (F3)
-  ftop: string;    // Topografia (F4)
-  fpd: string;     // Pedologia (F5)
-  fpav: string;    // Pavimentação (F6)
-  fmp: string;     // Melhoramentos públicos (F7)
-  fto: string;     // Tipo de ocupação (F8)
-  fat: number;     // Ajuste valor cadastral terreno (Permanece número pois é input direto)
+  // Fatores de Terreno
+  fsq: string;     
+  ftop: string;    
+  fpd: string;     
+  fpav: string;    
+  fmp: string;     
+  fto: string;     
+  fat: number;     
   
   // Fatores de Construção
-  fpc: string;     // Padrão construtivo
-  fec: string;     // Elemento construtivo
-  fcv: string;     // Condomínio vertical
-  favi: number;    // Ajuste cadastral imóvel (Permanece número pois é input direto)
+  fpc: string;     
+  fec: string;     
+  fcv: string;     
+  favi: number;    
 }

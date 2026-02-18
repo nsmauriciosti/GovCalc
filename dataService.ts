@@ -1,17 +1,5 @@
 
-import { Logradouro, SimulationParams, CalculoResult } from './types';
-import { 
-  CR_VALOR,
-  SITUACAO_QUADRA,
-  TOPOGRAFIA,
-  PEDOLOGIA,
-  PAVIMENTACAO,
-  MELHORAMENTOS,
-  TIPO_OCUPACAO,
-  PADRAO_CONSTRUTIVO,
-  ELEMENTO_CONSTRUTIVO,
-  CONDOMINIO_VERTICAL
-} from './constants';
+import { Logradouro, SimulationParams, CalculoResult, AppConfig } from './types';
 
 const getMultiplier = (list: { value: string, multiplier: number }[], selectedValue: string, defaultVal: number): number => {
   const item = list.find(i => i.value === selectedValue);
@@ -19,32 +7,33 @@ const getMultiplier = (list: { value: string, multiplier: number }[], selectedVa
 };
 
 /**
- * Cálculos baseados na Planta de Valores Genéricos (PVG) de Nova Serrana/MG
+ * Cálculos baseados na Planta de Valores Genéricos (PVG)
+ * Agora aceita o objeto 'config' dinâmico
  */
-export const calculateIPTU = (params: SimulationParams): CalculoResult => {
+export const calculateIPTU = (params: SimulationParams, config: AppConfig): CalculoResult => {
   const { at, acb, testada, app, logradouro, fsq, ftop, fpd, fpav, fmp, fto, fat, fpc, fec, fcv, favi } = params;
   
   if (!logradouro) {
     return { vvt: 0, vc: 0, vvi: 0, fatoresTerreno: {}, fatoresConstrucao: {} };
   }
 
-  // Resolução dos multiplicadores numéricos a partir das strings selecionadas
-  const mFsq = getMultiplier(SITUACAO_QUADRA, fsq, 1.0);
-  const mFtop = getMultiplier(TOPOGRAFIA, ftop, 1.0);
-  const mFpd = getMultiplier(PEDOLOGIA, fpd, 1.0);
-  const mFpav = getMultiplier(PAVIMENTACAO, fpav, 1.0);
-  const mFmp = getMultiplier(MELHORAMENTOS, fmp, 1.0);
-  const mFto = getMultiplier(TIPO_OCUPACAO, fto, 1.0);
-  const mFpc = getMultiplier(PADRAO_CONSTRUTIVO, fpc, 1.0);
-  const mFec = getMultiplier(ELEMENTO_CONSTRUTIVO, fec, 1.0);
-  const mFcv = getMultiplier(CONDOMINIO_VERTICAL, fcv, 1.0);
+  // Resolução dos multiplicadores numéricos a partir das configurações dinâmicas
+  const mFsq = getMultiplier(config.situacaoQuadra, fsq, 1.0);
+  const mFtop = getMultiplier(config.topografia, ftop, 1.0);
+  const mFpd = getMultiplier(config.pedologia, fpd, 1.0);
+  const mFpav = getMultiplier(config.pavimentacao, fpav, 1.0);
+  const mFmp = getMultiplier(config.melhoramentos, fmp, 1.0);
+  const mFto = getMultiplier(config.tipoOcupacao, fto, 1.0);
+  const mFpc = getMultiplier(config.padraoConstrutivo, fpc, 1.0);
+  const mFec = getMultiplier(config.elementoConstrutivo, fec, 1.0);
+  const mFcv = getMultiplier(config.condominioVertical, fcv, 1.0);
 
-  // F1 = FATOR DE TESTADA (Ft) - Raiz Quarta conforme norma técnica
+  // F1 = FATOR DE TESTADA (Ft)
   const testadaPadrao = 12.00;
   let ft = testada > 0 ? Math.pow(testada / testadaPadrao, 0.25) : 1.0;
   ft = Math.max(0.50, Math.min(1.50, ft));
   
-  // F2 = FATOR DE ÁREA (Fa) - Regressão Logarítmica (Padrão ABNT adaptado)
+  // F2 = FATOR DE ÁREA (Fa)
   let fa = 1.0;
   if (at <= 1800) {
     fa = 1.434 - 0.076 * Math.log(at > 0 ? at : 1);
@@ -55,18 +44,14 @@ export const calculateIPTU = (params: SimulationParams): CalculoResult => {
   }
   fa = Math.max(0.238, Math.min(1.50, fa));
 
-  // Rapp = Redutor APP (Limitação de uso)
   const rapp = (at > 0 && app > 0) ? Math.max(0.20, 1 - ((app * 0.8) / at)) : 1.0;
-
-  // Vmq = Valor do metro quadrado do logradouro (VU_PVG)
   const vmq = logradouro.vu_pvg;
 
-  // Vvt = At x Vmq x (Ft x Fa x fsq x ftop x fpd x fpav x fmp x fto) * fat * rapp
   const f_prod = ft * fa * mFsq * mFtop * mFpd * mFpav * mFmp * mFto;
   const vvt = (at * vmq * f_prod) * (fat || 1.0) * rapp;
 
   // Vc = Acb x Cr x Fpc x Fec x Fcv
-  const vc = acb * CR_VALOR * mFpc * mFec * mFcv;
+  const vc = acb * config.crValor * mFpc * mFec * mFcv;
 
   // Vvi = (Vvt + Vc) * Favi
   const vvi = (vvt + vc) * (favi || 1.0);
@@ -80,23 +65,15 @@ export const calculateIPTU = (params: SimulationParams): CalculoResult => {
   };
 };
 
-/**
- * Filtro de logradouros otimizado para grandes volumes
- */
 export const searchLogradouros = (term: string, list: Logradouro[]): Logradouro[] => {
   if (!term || term.length < 2) return [];
-  
   const searchTerms = term.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ').filter(t => t.length > 0);
-  
   return list.filter(log => {
     const combined = `${log.nome} ${log.codigo}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return searchTerms.every(t => combined.includes(t));
   });
 };
 
-/**
- * Planta de Valores Genéricos - Dados Iniciais
- */
 export const MOCK_LOGRADOUROS: Logradouro[] = [
   { codigo: "10.0", nome: "RUA DIMAS GUIMARÃES", sequencia: "10.1", vu_pvg: 3150.50 },
   { codigo: "15.0", nome: "RUA PADRE LIBÉRIO", sequencia: "15.1", vu_pvg: 1845.20 },
