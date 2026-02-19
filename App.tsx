@@ -166,6 +166,7 @@ const App: React.FC = () => {
   const [loginForm, setLoginForm] = useState({ user: '', pass: '' });
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [logradouros, setLogradouros] = useState<Logradouro[]>(MOCK_LOGRADOUROS);
@@ -173,9 +174,17 @@ const App: React.FC = () => {
   
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -194,6 +203,66 @@ const App: React.FC = () => {
     setParams(prev => ({ ...prev, logradouro: log }));
     setSearchTerm(log.nome);
     setIsSearching(false);
+  };
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocalização não é suportada pelo seu navegador.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          // Reverse geocoding usando Nominatim (OpenStreetMap)
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`);
+          const data = await response.json();
+          
+          if (data && data.address) {
+            const road = data.address.road || data.address.pedestrian || data.address.suburb;
+            if (road) {
+              setSearchTerm(road.toUpperCase());
+              setIsSearching(true);
+              
+              // Tenta encontrar uma correspondência exata ou aproximada na lista
+              const bestMatch = searchLogradouros(road, logradouros)[0];
+              if (bestMatch) {
+                handleLogradouroSelect(bestMatch);
+              } else {
+                alert(`Localizado: "${road}", mas este logradouro não foi encontrado na Planta de Valores atual.`);
+              }
+            } else {
+              alert("Não foi possível determinar o nome da rua para sua localização.");
+            }
+          }
+        } catch (error) {
+          console.error("Erro na geolocalização:", error);
+          alert("Ocorreu um erro ao tentar identificar sua rua.");
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            alert("Permissão de localização negada pelo usuário.");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            alert("Informações de localização indisponíveis.");
+            break;
+          case error.TIMEOUT:
+            alert("Tempo limite atingido ao tentar obter localização.");
+            break;
+          default:
+            alert("Erro desconhecido na geolocalização.");
+            break;
+        }
+      },
+      { timeout: 10000 }
+    );
   };
 
   const findKeyByAlias = (rowKeys: string[], targetAliases: string[]): string | undefined => {
@@ -238,7 +307,7 @@ const App: React.FC = () => {
   };
 
   const results = useMemo(() => calculateIPTU(params, config), [params, config]);
-  const filteredLogradouros = useMemo(() => searchLogradouros(searchTerm, logradouros), [searchTerm, logradouros]);
+  const filteredLogradouros = useMemo(() => searchLogradouros(debouncedSearchTerm, logradouros), [debouncedSearchTerm, logradouros]);
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const handleAdminLogin = (e: React.FormEvent) => {
@@ -403,17 +472,32 @@ const App: React.FC = () => {
               </h3>
             </div>
             
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onFocus={() => setIsSearching(true)}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Busque por rua ou código (ex: Dimas Guimarães)..."
-                className="block w-full pl-4 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all"
-              />
-              {isSearching && searchTerm.length >= 2 && (
-                <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-80 overflow-y-auto ring-1 ring-black ring-opacity-5">
+            <div className="relative flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onFocus={() => setIsSearching(true)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Busque por rua ou código (ex: Dimas Guimarães)..."
+                  className="block w-full pl-4 pr-10 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all"
+                />
+                <button 
+                  onClick={handleUseLocation}
+                  disabled={isLocating}
+                  title="Usar minha localização atual"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                >
+                  {isLocating ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                  )}
+                </button>
+              </div>
+
+              {isSearching && debouncedSearchTerm.length >= 2 && (
+                <div className="absolute z-50 w-full mt-12 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-80 overflow-y-auto ring-1 ring-black ring-opacity-5">
                   <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider sticky top-0 border-b border-gray-100 z-10 flex justify-between">
                     <span>{filteredLogradouros.length} encontrados</span>
                     <span>Planta {logradouros.length} registros</span>

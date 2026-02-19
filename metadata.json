@@ -1,5 +1,7 @@
 {
   "name": "Calculadora IPTU Nova Serrana",
   "description": "Uma aplicação completa para o cálculo do valor venal de terrenos e construções baseada na Planta de Valores Genéricos (PVG) de Nova Serrana/MG, permitindo simular o IPTU com todos os fatores e índices previstos na legislação.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }
