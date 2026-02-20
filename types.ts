@@ -24,6 +24,7 @@ export interface AppConfig {
   elementoConstrutivo: FactorOption[];
   condominioVertical: FactorOption[];
   aiEnabled: boolean;
+  faviconUrl?: string;
 }
 
 export interface CalculoResult {

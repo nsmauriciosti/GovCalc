@@ -161,6 +161,7 @@ const App: React.FC = () => {
     elementoConstrutivo: ELEMENTO_CONSTRUTIVO,
     condominioVertical: CONDOMINIO_VERTICAL,
     aiEnabled: false,
+    faviconUrl: '/favicon.ico',
   });
 
   const [params, setParams] = useState<SimulationParams>({
@@ -193,6 +194,14 @@ const App: React.FC = () => {
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm]);
+
+  useEffect(() => {
+    const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
+    link.type = 'image/x-icon';
+    link.rel = 'shortcut icon';
+    link.href = config.faviconUrl || '/favicon.ico';
+    document.getElementsByTagName('head')[0].appendChild(link);
+  }, [config.faviconUrl]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -386,6 +395,24 @@ const App: React.FC = () => {
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.aiEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">URL do Favicon</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={config.faviconUrl} 
+                    onChange={(e) => setConfig({...config, faviconUrl: e.target.value})} 
+                    placeholder="https://exemplo.com/favicon.ico"
+                    className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
+                  />
+                  {config.faviconUrl && (
+                    <div className="w-10 h-10 border rounded-lg flex items-center justify-center bg-gray-50">
+                      <img src={config.faviconUrl} alt="Preview" className="w-6 h-6 object-contain" onError={(e) => (e.currentTarget.src = '/favicon.ico')} />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
