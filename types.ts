@@ -30,6 +30,9 @@ export interface CalculoResult {
   vvt: number; // Valor venal do terreno
   vc: number;  // Valor venal da construção
   vvi: number; // Valor venal do imóvel
+  iptu: number; // Valor do IPTU
+  aliquota: number; // Alíquota aplicada
+  categoria: 'PREDIAL' | 'TERRITORIAL';
   fatoresTerreno: Record<string, number>;
   fatoresConstrucao: Record<string, number>;
 }

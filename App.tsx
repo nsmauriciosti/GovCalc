@@ -87,6 +87,14 @@ const HelpModal: React.FC<{ isOpen: boolean; onClose: () => void; crValor: numbe
             <p className="text-sm">VC = Acb x Cr x Fpc x Fec x Fcv</p>
             <p className="text-xs mt-2 italic text-gray-400">* Custo de Referência (Cr) configurado: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(crValor)}/m².</p>
           </section>
+          <section>
+            <h3 className="text-lg font-bold text-purple-600 mb-2 flex items-center"><span className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mr-3 text-sm">03</span>IPTU</h3>
+            <p className="text-sm mb-4">O valor do IPTU é calculado aplicando a alíquota correspondente sobre o Valor Venal do Imóvel (VVI):</p>
+            <div className="bg-gray-50 p-4 rounded-xl font-mono text-xs border border-gray-100 leading-loose">
+              IPTU = VVI x Alíquota
+            </div>
+            <p className="text-xs mt-4 text-gray-500">As alíquotas variam conforme a categoria (Predial ou Territorial) e a faixa de valor venal, seguindo a Tabela II da legislação municipal.</p>
+          </section>
         </div>
         <div className="p-6 border-t border-gray-100 flex justify-end">
           <button onClick={onClose} className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors">Entendi</button>
@@ -572,6 +580,18 @@ const App: React.FC = () => {
             <div className="mb-2">
               <span className="text-[10px] text-gray-400 font-bold uppercase block">Valor Venal do Imóvel (VVI)</span>
               <div className="text-4xl font-black tracking-tighter text-white">{formatCurrency(results.vvi)}</div>
+            </div>
+            <div className="pt-4 border-t border-white/10">
+              <div className="flex justify-between items-end">
+                <div>
+                  <span className="text-[10px] text-blue-400 font-bold uppercase block">Estimativa IPTU</span>
+                  <div className="text-2xl font-black text-white">{formatCurrency(results.iptu)}</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Alíquota ({results.categoria})</span>
+                  <div className="text-sm font-bold text-blue-300">{(results.aliquota * 100).toFixed(2)}%</div>
+                </div>
+              </div>
             </div>
           </div>
 

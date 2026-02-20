@@ -1,5 +1,6 @@
 
 import { Logradouro, SimulationParams, CalculoResult, AppConfig } from './types';
+import { ALIQUOTAS_IPTU } from './constants';
 
 const getMultiplier = (list: { value: string, multiplier: number }[], selectedValue: string, defaultVal: number): number => {
   const item = list.find(i => i.value === selectedValue);
@@ -14,7 +15,7 @@ export const calculateIPTU = (params: SimulationParams, config: AppConfig): Calc
   const { at, acb, testada, app, logradouro, fsq, ftop, fpd, fpav, fmp, fto, fat, fpc, fec, fcv, favi } = params;
   
   if (!logradouro) {
-    return { vvt: 0, vc: 0, vvi: 0, fatoresTerreno: {}, fatoresConstrucao: {} };
+    return { vvt: 0, vc: 0, vvi: 0, iptu: 0, aliquota: 0, categoria: 'TERRITORIAL', fatoresTerreno: {}, fatoresConstrucao: {} };
   }
 
   // Resolução dos multiplicadores numéricos a partir das configurações dinâmicas
@@ -56,10 +57,20 @@ export const calculateIPTU = (params: SimulationParams, config: AppConfig): Calc
   // Vvi = (Vvt + Vc) * Favi
   const vvi = (vvt + vc) * (favi || 1.0);
 
+  // CÁLCULO DO IPTU
+  const categoria = acb > 0 ? 'PREDIAL' : 'TERRITORIAL';
+  const tabela = ALIQUOTAS_IPTU[categoria];
+  const faixa = tabela.find(f => vvi >= f.min && vvi <= f.max) || tabela[tabela.length - 1];
+  const aliquota = faixa.rate;
+  const iptu = vvi * aliquota;
+
   return {
     vvt,
     vc,
     vvi,
+    iptu,
+    aliquota,
+    categoria,
     fatoresTerreno: { ft, fa, fsq: mFsq, ftop: mFtop, fpd: mFpd, fpav: mFpav, fmp: mFmp, fto: mFto, fat, rapp },
     fatoresConstrucao: { fpc: mFpc, fec: mFec, fcv: mFcv, favi }
   };

@@ -116,3 +116,23 @@ export const CONDOMINIO_VERTICAL = [
   { label: 'Loja - Luxo', value: 'Loja - Luxo', multiplier: 2.2 },
   { label: 'Garagem - Luxo', value: 'Garagem - Luxo', multiplier: 1.5 },
 ];
+
+export const ALIQUOTAS_IPTU = {
+  PREDIAL: [
+    { min: 0, max: 100000, rate: 0.0045 },
+    { min: 100000.01, max: 200000, rate: 0.0050 },
+    { min: 200000.01, max: 350000, rate: 0.0055 },
+    { min: 350000.01, max: 550000, rate: 0.0060 },
+    { min: 550000.01, max: 1000000, rate: 0.0065 },
+    { min: 1000000.01, max: 1500000, rate: 0.0080 },
+    { min: 1500000.01, max: Infinity, rate: 0.0090 },
+  ],
+  TERRITORIAL: [
+    { min: 0, max: 80000, rate: 0.0065 },
+    { min: 80000.01, max: 160000, rate: 0.0070 },
+    { min: 160000.01, max: 500000, rate: 0.0075 },
+    { min: 500000.01, max: 1000000, rate: 0.0090 },
+    { min: 1000000.01, max: 2000000, rate: 0.0100 },
+    { min: 2000000.01, max: Infinity, rate: 0.0110 },
+  ]
+};
