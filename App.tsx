@@ -150,16 +150,16 @@ const FactorDisplay: React.FC<{ label: string; value: any; subtitle?: string; to
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>({
-    crValor: CR_VALOR,
-    situacaoQuadra: SITUACAO_QUADRA,
-    topografia: TOPOGRAFIA,
-    pedologia: PEDOLOGIA,
-    pavimentacao: PAVIMENTACAO,
-    melhoramentos: MELHORAMENTOS,
-    tipoOcupacao: TIPO_OCUPACAO,
-    padraoConstrutivo: PADRAO_CONSTRUTIVO,
-    elementoConstrutivo: ELEMENTO_CONSTRUTIVO,
-    condominioVertical: CONDOMINIO_VERTICAL,
+    crValor: 0,
+    situacaoQuadra: [],
+    topografia: [],
+    pedologia: [],
+    pavimentacao: [],
+    melhoramentos: [],
+    tipoOcupacao: [],
+    padraoConstrutivo: [],
+    elementoConstrutivo: [],
+    condominioVertical: [],
     aiEnabled: false,
     faviconUrl: '/favicon.ico',
   });
@@ -178,7 +178,7 @@ const App: React.FC = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [logradouros, setLogradouros] = useState<Logradouro[]>(MOCK_LOGRADOUROS);
+  const [logradouros, setLogradouros] = useState<Logradouro[]>([]);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -187,6 +187,30 @@ const App: React.FC = () => {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch initial config
+  useEffect(() => {
+    fetch('/api/init')
+      .then(res => res.json())
+      .then(data => {
+        if (data.config) {
+          setConfig(prev => ({ ...prev, ...data.config }));
+        }
+      })
+      .catch(err => console.error("Failed to load config:", err));
+  }, []);
+
+  // Fetch logradouros on search
+  useEffect(() => {
+    if (debouncedSearchTerm.length >= 2) {
+      fetch(`/api/logradouros?q=${encodeURIComponent(debouncedSearchTerm)}`)
+        .then(res => res.json())
+        .then(data => setLogradouros(data))
+        .catch(err => console.error("Search error:", err));
+    } else {
+      setLogradouros([]);
+    }
+  }, [debouncedSearchTerm]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -324,7 +348,8 @@ const App: React.FC = () => {
   };
 
   const results = useMemo(() => calculateIPTU(params, config), [params, config]);
-  const filteredLogradouros = useMemo(() => searchLogradouros(debouncedSearchTerm, logradouros), [debouncedSearchTerm, logradouros]);
+  // Filter is now done on server side via API
+  const filteredLogradouros = logradouros; 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const handleAdminLogin = (e: React.FormEvent) => {
@@ -361,6 +386,37 @@ const App: React.FC = () => {
     }
   };
 
+  const saveConfig = async (newConfig: AppConfig) => {
+    try {
+      await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          crValor: newConfig.crValor,
+          aiEnabled: newConfig.aiEnabled,
+          faviconUrl: newConfig.faviconUrl
+        })
+      });
+      setConfig(newConfig);
+    } catch (e) {
+      alert("Erro ao salvar configurações");
+    }
+  };
+
+  const updateFactor = async (type: string, factors: FactorOption[]) => {
+    try {
+      await fetch('/api/admin/factors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, factors })
+      });
+      // Update local state
+      setConfig(prev => ({ ...prev, [type]: factors }));
+    } catch (e) {
+      alert("Erro ao atualizar fatores");
+    }
+  };
+
   // DASHBOARD ADMIN
   if (view === 'admin' && isAdminLoggedIn) {
     return (
@@ -382,7 +438,7 @@ const App: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Custo Referência m² (Cr)</label>
-                <input type="number" step="0.01" value={config.crValor} onChange={(e) => setConfig({...config, crValor: parseFloat(e.target.value)})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                <input type="number" step="0.01" value={config.crValor} onChange={(e) => saveConfig({...config, crValor: parseFloat(e.target.value)})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
               <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <div>
@@ -390,7 +446,7 @@ const App: React.FC = () => {
                   <p className="text-[10px] text-blue-700">Ativar assistente de análise nos resultados</p>
                 </div>
                 <button 
-                  onClick={() => setConfig({...config, aiEnabled: !config.aiEnabled})}
+                  onClick={() => saveConfig({...config, aiEnabled: !config.aiEnabled})}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${config.aiEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.aiEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -403,7 +459,7 @@ const App: React.FC = () => {
                   <input 
                     type="text" 
                     value={config.faviconUrl} 
-                    onChange={(e) => setConfig({...config, faviconUrl: e.target.value})} 
+                    onChange={(e) => saveConfig({...config, faviconUrl: e.target.value})} 
                     placeholder="https://exemplo.com/favicon.ico"
                     className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
                   />
@@ -438,7 +494,7 @@ const App: React.FC = () => {
                 <input type="number" step="0.01" value={opt.multiplier} onChange={(e) => {
                   const newFactors = [...config.situacaoQuadra];
                   newFactors[i].multiplier = parseFloat(e.target.value);
-                  setConfig({...config, situacaoQuadra: newFactors});
+                  updateFactor('situacaoQuadra', newFactors);
                 }} className="text-sm font-bold border-none p-0 focus:ring-0 outline-none" />
               </div>
             ))}
@@ -535,7 +591,7 @@ const App: React.FC = () => {
                 <div className="absolute z-50 w-full mt-12 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-80 overflow-y-auto ring-1 ring-black ring-opacity-5">
                   <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider sticky top-0 border-b border-gray-100 z-10 flex justify-between">
                     <span>{filteredLogradouros.length} encontrados</span>
-                    <span>Planta {logradouros.length} registros</span>
+                    <span>(Exibindo max 50)</span>
                   </div>
                   {filteredLogradouros.length > 0 ? (
                     filteredLogradouros.map((log, i) => (
