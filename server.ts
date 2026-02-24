@@ -27,14 +27,18 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
 
   // Initialize Supabase with seed data if empty
-  const { count: logradouroCount } = await supabase.from('logradouros').select('*', { count: 'exact', head: true });
-  if (logradouroCount === 0) {
+  const { count: logradouroCount, error: logError } = await supabase.from('logradouros').select('*', { count: 'exact', head: true });
+  if (logError) {
+    console.error("Error checking logradouros table:", logError.message);
+  } else if (logradouroCount === 0) {
     console.log("Seeding logradouros to Supabase...");
     await supabase.from('logradouros').insert(MOCK_LOGRADOUROS);
   }
 
-  const { count: configCount } = await supabase.from('config').select('*', { count: 'exact', head: true });
-  if (configCount === 0) {
+  const { count: configCount, error: configCheckError } = await supabase.from('config').select('*', { count: 'exact', head: true });
+  if (configCheckError) {
+    console.error("Error checking config table:", configCheckError.message);
+  } else if (configCount === 0) {
     console.log("Seeding config to Supabase...");
     await supabase.from('config').insert([
       { key: 'crValor', value: String(CR_VALOR) },
@@ -43,8 +47,10 @@ async function startServer() {
     ]);
   }
 
-  const { count: factorsCount } = await supabase.from('factors').select('*', { count: 'exact', head: true });
-  if (factorsCount === 0) {
+  const { count: factorsCount, error: factorsCheckError } = await supabase.from('factors').select('*', { count: 'exact', head: true });
+  if (factorsCheckError) {
+    console.error("Error checking factors table:", factorsCheckError.message);
+  } else if (factorsCount === 0) {
     console.log("Seeding factors to Supabase...");
     const allFactors = [
       ...SITUACAO_QUADRA.map(f => ({ ...f, type: 'situacaoQuadra' })),
@@ -182,7 +188,7 @@ async function startServer() {
     app.use(express.static(path.resolve(__dirname, "dist")));
     
     // Handle SPA fallback
-    app.get("*", (req, res) => {
+    app.get("(.*)", (req, res) => {
       if (req.path.startsWith('/api')) return res.status(404).json({error: 'Not found'});
       res.sendFile(path.resolve(__dirname, "dist", "index.html"));
     });
