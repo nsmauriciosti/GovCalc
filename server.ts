@@ -188,7 +188,7 @@ async function startServer() {
     app.use(express.static(path.resolve(__dirname, "dist")));
     
     // Handle SPA fallback
-    app.get("/:path*", (req, res) => {
+    app.use((req, res) => {
       if (req.path.startsWith('/api')) return res.status(404).json({error: 'Not found'});
       res.sendFile(path.resolve(__dirname, "dist", "index.html"));
     });
