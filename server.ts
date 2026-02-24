@@ -184,35 +184,48 @@ async function startServer() {
   app.post("/api/admin/imoveis/import", async (req, res) => {
     try {
       const { imoveis } = req.body;
-      if (!Array.isArray(imoveis)) throw new Error("Invalid data");
+      if (!Array.isArray(imoveis)) throw new Error("Dados inválidos: esperava-se um array.");
+      console.log(`Iniciando importação de ${imoveis.length} imóveis...`);
 
       // We use upsert to avoid duplicates if they import multiple times
       const { error } = await supabase.from('imoveis').upsert(imoveis, { onConflict: 'inscricao' });
-      if (error) throw error;
+      if (error) {
+        console.error("Erro Supabase (imoveis import):", error);
+        throw error;
+      }
 
+      console.log("Importação de imóveis concluída com sucesso.");
       res.json({ success: true, count: imoveis.length });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Import failed" });
+    } catch (error: any) {
+      console.error("Erro na rota de importação de imóveis:", error);
+      res.status(500).json({ error: error.message || "Falha na importação de imóveis" });
     }
   });
 
   app.post("/api/admin/logradouros/import", async (req, res) => {
     try {
       const { logradouros } = req.body;
-      if (!Array.isArray(logradouros)) throw new Error("Invalid data");
+      if (!Array.isArray(logradouros)) throw new Error("Dados inválidos: esperava-se um array.");
+      console.log(`Iniciando importação de ${logradouros.length} logradouros...`);
 
       // Replace all logradouros
       const { error: deleteError } = await supabase.from('logradouros').delete().neq('id', 0); // Delete all
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        console.error("Erro ao limpar logradouros:", deleteError);
+        throw deleteError;
+      }
 
       const { error: insertError } = await supabase.from('logradouros').insert(logradouros);
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Erro Supabase (logradouros import):", insertError);
+        throw insertError;
+      }
 
+      console.log("Importação de logradouros concluída com sucesso.");
       res.json({ success: true, count: logradouros.length });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Import failed" });
+    } catch (error: any) {
+      console.error("Erro na rota de importação de logradouros:", error);
+      res.status(500).json({ error: error.message || "Falha na importação de logradouros" });
     }
   });
 

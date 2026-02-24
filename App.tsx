@@ -390,6 +390,7 @@ const App: React.FC = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    console.log("Arquivo selecionado:", file.name);
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
@@ -398,6 +399,7 @@ const App: React.FC = () => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        console.log(`Total de linhas detectadas: ${rawRows.length}`);
         if (rawRows.length === 0) throw new Error("Planilha vazia.");
         
         const firstRowKeys = Object.keys(rawRows[0]);
@@ -408,6 +410,7 @@ const App: React.FC = () => {
 
         // Detect if it's the new complex format
         const isInscricao = findKeyByAlias(firstRowKeys, ['inscricao']);
+        console.log("Tipo detectado:", isInscricao ? "Imóveis" : "Logradouros");
         
         if (isInscricao) {
           // Complex Property Import
@@ -432,7 +435,10 @@ const App: React.FC = () => {
               cond_vert: parseFlexibleNumber(getVal('cond_vert')),
               pvg_vu_pvg: parseFlexibleNumber(getVal('pvg_vu_pvg'))
             };
-          }).filter(i => i.inscricao && i.inscricao !== "undefined");
+          }).filter(i => i.inscricao && i.inscricao !== "undefined" && i.inscricao !== "");
+
+          console.log(`Enviando ${imoveisList.length} imóveis...`);
+          if (imoveisList.length > 0) console.log("Primeiro item:", imoveisList[0]);
 
           const res = await fetch('/api/admin/imoveis/import', {
             method: 'POST',
@@ -440,7 +446,7 @@ const App: React.FC = () => {
             body: JSON.stringify({ imoveis: imoveisList })
           });
           const result = await res.json();
-          if (result.error) throw new Error(result.error);
+          if (!res.ok || result.error) throw new Error(result.error || "Erro no servidor");
           setImportStatus({ type: 'success', message: `${imoveisList.length} imóveis importados com sucesso.` });
         } else {
           // Legacy Logradouro Import
@@ -464,14 +470,14 @@ const App: React.FC = () => {
             body: JSON.stringify({ logradouros: newList })
           });
           const result = await res.json();
-          if (result.error) throw new Error(result.error);
+          if (!res.ok || result.error) throw new Error(result.error || "Erro no servidor");
           setImportStatus({ type: 'success', message: `${newList.length} logradouros importados com sucesso.` });
         }
       } catch (err: any) { 
-        console.error(err);
-        setImportStatus({ type: 'error', message: err.message }); 
+        console.error("Erro na importação:", err);
+        setImportStatus({ type: 'error', message: `Erro: ${err.message}` }); 
       }
-      setTimeout(() => setImportStatus(null), 5000);
+      setTimeout(() => setImportStatus(null), 10000);
     };
     reader.readAsBinaryString(file);
   };
