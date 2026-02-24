@@ -168,6 +168,110 @@ const FactorDisplay: React.FC<{ label: string; value: any; subtitle?: string; to
   </div>
 );
 
+const ImovelDetailsModal: React.FC<{ imovel: any; isOpen: boolean; onClose: () => void; onApply: (imovel: any) => void }> = ({ imovel, isOpen, onClose, onApply }) => {
+  if (!isOpen || !imovel) return null;
+
+  const labels: Record<string, string> = {
+    inscricao: 'Inscrição',
+    autonoma: 'Autônoma',
+    pavim: 'Pavimentos',
+    fmp: 'FMP',
+    pvg_vu_pvg: 'Valor Unitário (VU)',
+    m_nro_cuc: 'Nro CUC',
+    m_cnpj_cpf: 'CNPJ/CPF',
+    m_nome: 'Nome Proprietário',
+    m_cod_logr: 'Cód. Logradouro',
+    m_tipo_log: 'Tipo Logradouro',
+    m_des_logr: 'Logradouro',
+    m_num_pr_1: 'Número',
+    m_comple_1: 'Complemento',
+    m_cod_bair: 'Cód. Bairro',
+    m_des_bair: 'Bairro',
+    m_secao: 'Seção',
+    m_face: 'Face',
+    m_area_lot: 'Área Lote',
+    m_area_con: 'Área Construída',
+    m_qtd_unid: 'Qtd Unidades',
+    m_area_tot_con: 'Área Total Constr.',
+    fi_lote: 'FI Lote',
+    m_testadap: 'Testada Principal',
+    m_cod_test: 'Cód. Testada',
+    m_ocupacao: 'Ocupação',
+    m_utilizac: 'Utilização',
+    m_patrimon: 'Patrimônio',
+    m_muro_cer: 'Muro/Cerca',
+    m_passeio: 'Passeio',
+    m_limpezal: 'Limpeza',
+    m_isencao_: 'Isenção',
+    m_situacao: 'Situação',
+    m_topograf: 'Topografia',
+    m_pedologi: 'Pedologia',
+    tipo_ocuop: 'Tipo Ocupação',
+    m_tipo: 'Tipo Construção',
+    m_alinhame: 'Alinhamento',
+    m_posicao: 'Posição',
+    m_localiza: 'Localização',
+    m_estrutur: 'Estrutura',
+    m_cobertur: 'Cobertura',
+    m_paredes: 'Paredes',
+    m_forro: 'Forro',
+    m_revestim: 'Revestimento',
+    m_instalac: 'Instalação',
+    m_instal_1: 'Instalação 1',
+    m_piso: 'Piso',
+    m_padrao: 'Padrão',
+    m_regulari: 'Regularidade',
+    cond_vert: 'Cond. Vertical',
+    fora: 'Fora',
+    mediana: 'Mediana'
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-300">
+        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-3xl">
+          <div>
+            <h2 className="text-xl font-black text-gray-900">Detalhes do Imóvel</h2>
+            <p className="text-sm text-gray-500">Inscrição: {imovel.inscricao}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.entries(labels).map(([key, label]) => (
+              <div key={key} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+                <p className="text-sm font-semibold text-gray-800 break-words">
+                  {imovel[key] !== null && imovel[key] !== undefined && imovel[key] !== "" ? String(imovel[key]) : <span className="text-gray-300 italic">Não informado</span>}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-8 py-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3 justify-end bg-gray-50 rounded-b-3xl">
+          <button 
+            onClick={onClose}
+            className="px-6 py-3 text-sm font-bold text-gray-500 hover:bg-gray-200 rounded-xl transition-all"
+          >
+            Fechar
+          </button>
+          <button 
+            onClick={() => onApply(imovel)}
+            className="px-8 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+            Usar estes dados no Simulador
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>({
     crValor: 0,
@@ -208,6 +312,7 @@ const App: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [selectedImovelForModal, setSelectedImovelForModal] = useState<any | null>(null);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -289,35 +394,42 @@ const App: React.FC = () => {
     setIsSearching(false);
   };
 
-  const cleanFactorValue = (val: string, options: FactorOption[]): string => {
-    if (!val) return options[0].value;
+  const cleanFactorValue = (val: string, options: FactorOption[], fallback: string): string => {
+    if (!val || !options || options.length === 0) return fallback;
     const clean = val.includes('-') ? val.split('-')[1].trim() : val.trim();
     const match = options.find(o => o.label.toLowerCase() === clean.toLowerCase() || o.value.toLowerCase() === clean.toLowerCase());
-    return match ? match.value : options[0].value;
+    return match ? match.value : (options[0]?.value || fallback);
   };
 
   const handleImovelSelect = (imovel: any) => {
+    setSelectedImovelForModal(imovel);
+    setIsSearchingImovel(false);
+  };
+
+  const applyImovelData = (imovel: any) => {
+    if (!imovel) return;
+    
     setParams(prev => ({
       ...prev,
       at: imovel.m_area_lot || prev.at,
       acb: imovel.m_area_con || prev.acb,
       testada: imovel.m_testadap || prev.testada,
       logradouro: {
-        codigo: imovel.m_cod_logr,
-        nome: imovel.m_des_logr,
+        codigo: imovel.m_cod_logr || "",
+        nome: imovel.m_des_logr || "NÃO INFORMADO",
         sequencia: "1",
-        vu_pvg: imovel.pvg_vu_pvg
+        vu_pvg: imovel.pvg_vu_pvg || 0
       },
-      fsq: cleanFactorValue(imovel.m_situacao, config.situacaoQuadra),
-      ftop: cleanFactorValue(imovel.m_topograf, config.topografia),
-      fpd: cleanFactorValue(imovel.m_pedologi, config.pedologia),
-      fpc: cleanFactorValue(imovel.m_tipo, config.padraoConstrutivo),
-      fec: cleanFactorValue(imovel.m_estrutur, config.elementoConstrutivo),
-      fcv: imovel.cond_vert > 0 ? cleanFactorValue('Apartamento - Normal', config.condominioVertical) : 'Não se aplica'
+      fsq: cleanFactorValue(imovel.m_situacao, config.situacaoQuadra, prev.fsq),
+      ftop: cleanFactorValue(imovel.m_topograf, config.topografia, prev.ftop),
+      fpd: cleanFactorValue(imovel.m_pedologi, config.pedologia, prev.fpd),
+      fpc: cleanFactorValue(imovel.m_tipo, config.padraoConstrutivo, prev.fpc),
+      fec: cleanFactorValue(imovel.m_estrutur, config.elementoConstrutivo, prev.fec),
+      fcv: imovel.cond_vert > 0 ? cleanFactorValue('Apartamento - Normal', config.condominioVertical, prev.fcv) : 'Não se aplica'
     }));
-    setSearchTerm(imovel.m_des_logr);
-    setImovelSearchTerm(imovel.inscricao);
-    setIsSearchingImovel(false);
+    setSearchTerm(imovel.m_des_logr || "");
+    setImovelSearchTerm(imovel.inscricao || "");
+    setSelectedImovelForModal(null);
   };
 
   const handleUseLocation = () => {
@@ -414,26 +526,61 @@ const App: React.FC = () => {
         
         if (isInscricao) {
           // Complex Property Import
-          const imoveisList = rawRows.map((row: any) => {
+          const imoveisList = rawRows.map((row: any, index) => {
             const getVal = (alias: string) => row[normalizedKeys[normalizeHeader(alias)]];
             return {
               inscricao: String(getVal('inscricao')),
+              autonoma: String(getVal('autonoma')),
+              pavim: String(getVal('pavim')),
+              fmp: String(getVal('fmp')),
+              pvg_vu_pvg: parseFlexibleNumber(getVal('pvg_vu_pvg')),
+              m_nro_cuc: String(getVal('m_nro_cuc')),
+              m_cnpj_cpf: String(getVal('m_cnpj_cpf')),
               m_nome: String(getVal('m_nome')),
               m_cod_logr: String(getVal('m_cod_logr')),
+              m_tipo_log: String(getVal('m_tipo_log')),
               m_des_logr: String(getVal('m_des_logr')).toUpperCase(),
               m_num_pr_1: String(getVal('m_num_pr_1')),
               m_comple_1: String(getVal('m_comple_1')),
+              m_cod_bair: String(getVal('m_cod_bair')),
               m_des_bair: String(getVal('m_des_bair')),
+              m_secao: String(getVal('m_secao')),
+              m_face: String(getVal('m_face')),
               m_area_lot: parseFlexibleNumber(getVal('m_area_lot')),
               m_area_con: parseFlexibleNumber(getVal('m_area_con')),
+              m_qtd_unid: parseInt(getVal('m_qtd_unid')) || 0,
+              m_area_tot_con: parseFlexibleNumber(getVal('m_area_tot_con')),
+              fi_lote: parseFlexibleNumber(getVal('fi_lote')),
               m_testadap: parseFlexibleNumber(getVal('m_testadap')),
+              m_cod_test: String(getVal('m_cod_test')),
+              m_ocupacao: String(getVal('m_ocupacao')),
+              m_utilizac: String(getVal('m_utilizac')),
+              m_patrimon: String(getVal('m_patrimon')),
+              m_muro_cer: String(getVal('m_muro_cer')),
+              m_passeio: String(getVal('m_passeio')),
+              m_limpezal: String(getVal('m_limpezal')),
+              m_isencao_: String(getVal('m_isencao_')),
               m_situacao: String(getVal('m_situacao')),
               m_topograf: String(getVal('m_topograf')),
               m_pedologi: String(getVal('m_pedologi')),
+              tipo_ocuop: String(getVal('tipo_ocuop')),
               m_tipo: String(getVal('m_tipo')),
+              m_alinhame: String(getVal('m_alinhame')),
+              m_posicao: String(getVal('m_posicao')),
+              m_localiza: String(getVal('m_localiza')),
               m_estrutur: String(getVal('m_estrutur')),
+              m_cobertur: String(getVal('m_cobertur')),
+              m_paredes: String(getVal('m_paredes')),
+              m_forro: String(getVal('m_forro')),
+              m_revestim: String(getVal('m_revestim')),
+              m_instalac: String(getVal('m_instalac')),
+              m_instal_1: String(getVal('m_instal_1')),
+              m_piso: String(getVal('m_piso')),
+              m_padrao: String(getVal('m_padrao')),
+              m_regulari: String(getVal('m_regulari')),
               cond_vert: parseFlexibleNumber(getVal('cond_vert')),
-              pvg_vu_pvg: parseFlexibleNumber(getVal('pvg_vu_pvg'))
+              fora: parseFlexibleNumber(getVal('fora')),
+              mediana: parseFlexibleNumber(getVal('mediana'))
             };
           }).filter(i => i.inscricao && i.inscricao !== "undefined" && i.inscricao !== "");
 
@@ -666,6 +813,12 @@ const App: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} crValor={config.crValor} />
+      <ImovelDetailsModal 
+        isOpen={!!selectedImovelForModal} 
+        imovel={selectedImovelForModal} 
+        onClose={() => setSelectedImovelForModal(null)} 
+        onApply={applyImovelData}
+      />
       
       <header className="mb-12 text-center relative">
         <div className="flex justify-between items-start mb-4">
