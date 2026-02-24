@@ -12,6 +12,26 @@ export interface FactorOption {
   multiplier: number;
 }
 
+export interface Imovel {
+  inscricao: string;
+  nome: string;
+  logradouro_cod: string;
+  logradouro_nome: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  area_terreno: number;
+  area_construida: number;
+  testada: number;
+  situacao: string;
+  topografia: string;
+  pedologia: string;
+  tipo_padrao: string;
+  estrutura: string;
+  cond_vert: number;
+  vu_pvg: number;
+}
+
 export interface AppConfig {
   crValor: number;
   situacaoQuadra: FactorOption[];

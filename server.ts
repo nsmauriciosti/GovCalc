@@ -66,6 +66,11 @@ async function startServer() {
     await supabase.from('factors').insert(allFactors);
   }
 
+  const { error: imoveisError } = await supabase.from('imoveis').select('*', { count: 'exact', head: true });
+  if (imoveisError) {
+    console.error("Error checking imoveis table:", imoveisError.message);
+  }
+
   // API Routes
   app.get("/api/init", async (req, res) => {
     try {
@@ -153,6 +158,42 @@ async function startServer() {
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Update failed" });
+    }
+  });
+
+  app.get("/api/imoveis", async (req, res) => {
+    try {
+      const { q } = req.query;
+      if (!q || String(q).length < 3) return res.json([]);
+      
+      const term = String(q).trim();
+      const { data: imoveis, error } = await supabase
+        .from('imoveis')
+        .select('*')
+        .or(`inscricao.ilike.%${term}%,nome.ilike.%${term}%`)
+        .limit(20);
+      
+      if (error) throw error;
+      res.json(imoveis);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Search failed" });
+    }
+  });
+
+  app.post("/api/admin/imoveis/import", async (req, res) => {
+    try {
+      const { imoveis } = req.body;
+      if (!Array.isArray(imoveis)) throw new Error("Invalid data");
+
+      // We use upsert to avoid duplicates if they import multiple times
+      const { error } = await supabase.from('imoveis').upsert(imoveis, { onConflict: 'inscricao' });
+      if (error) throw error;
+
+      res.json({ success: true, count: imoveis.length });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Import failed" });
     }
   });
 

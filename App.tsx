@@ -45,10 +45,30 @@ const parseFlexibleNumber = (val: any): number => {
 };
 
 const COLUMN_ALIASES = {
-  codigo: ['codlog', 'codigologradouro', 'codigo', 'cod', 'id'],
-  nome: ['nomelogradouro', 'nome', 'logradouro', 'rua', 'avenida', 'via'],
-  sequencia: ['seq', 'sequencia', 'item', 'ordem'],
-  vu_pvg: ['vupvg', 'vupvg2024', 'valorunitario', 'valorm2', 'vmq', 'valor']
+  codigo: ['codlog', 'codigologradouro', 'codigo', 'cod', 'id', 'm_cod_logr'],
+  nome: ['nomelogradouro', 'nome', 'logradouro', 'rua', 'avenida', 'via', 'm_des_logr'],
+  sequencia: ['seq', 'sequencia', 'item', 'ordem', 'm_secao'],
+  vu_pvg: ['vupvg', 'vupvg2024', 'valorunitario', 'valorm2', 'vmq', 'valor', 'pvg_vu_pvg']
+};
+
+const IMOVEL_MAPPING = {
+  inscricao: 'inscricao',
+  nome: 'm_nome',
+  logradouro_cod: 'm_cod_logr',
+  logradouro_nome: 'm_des_logr',
+  numero: 'm_num_pr_1',
+  complemento: 'm_comple_1',
+  bairro: 'm_des_bair',
+  area_terreno: 'm_area_lot',
+  area_construida: 'm_area_con',
+  testada: 'm_testadap',
+  situacao: 'm_situacao',
+  topografia: 'm_topograf',
+  pedologia: 'm_pedologi',
+  tipo_padrao: 'm_tipo',
+  estrutura: 'm_estrutur',
+  cond_vert: 'cond_vert',
+  vu_pvg: 'pvg_vu_pvg'
 };
 
 const InfoIcon: React.FC<{ tooltip: string }> = ({ tooltip }) => (
@@ -175,10 +195,14 @@ const App: React.FC = () => {
   const [loginForm, setLoginForm] = useState({ user: '', pass: '' });
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [imovelSearchTerm, setImovelSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [debouncedImovelSearchTerm, setDebouncedImovelSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isSearchingImovel, setIsSearchingImovel] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [logradouros, setLogradouros] = useState<Logradouro[]>([]);
+  const [imoveis, setImoveis] = useState<any[]>([]);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -212,12 +236,31 @@ const App: React.FC = () => {
     }
   }, [debouncedSearchTerm]);
 
+  // Fetch imoveis on search
+  useEffect(() => {
+    if (debouncedImovelSearchTerm.length >= 3) {
+      fetch(`/api/imoveis?q=${encodeURIComponent(debouncedImovelSearchTerm)}`)
+        .then(res => res.json())
+        .then(data => setImoveis(data))
+        .catch(err => console.error("Imovel search error:", err));
+    } else {
+      setImoveis([]);
+    }
+  }, [debouncedImovelSearchTerm]);
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedImovelSearchTerm(imovelSearchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [imovelSearchTerm]);
 
   useEffect(() => {
     const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
@@ -244,6 +287,37 @@ const App: React.FC = () => {
     setParams(prev => ({ ...prev, logradouro: log }));
     setSearchTerm(log.nome);
     setIsSearching(false);
+  };
+
+  const cleanFactorValue = (val: string, options: FactorOption[]): string => {
+    if (!val) return options[0].value;
+    const clean = val.includes('-') ? val.split('-')[1].trim() : val.trim();
+    const match = options.find(o => o.label.toLowerCase() === clean.toLowerCase() || o.value.toLowerCase() === clean.toLowerCase());
+    return match ? match.value : options[0].value;
+  };
+
+  const handleImovelSelect = (imovel: any) => {
+    setParams(prev => ({
+      ...prev,
+      at: imovel.area_terreno || prev.at,
+      acb: imovel.area_construida || prev.acb,
+      testada: imovel.testada || prev.testada,
+      logradouro: {
+        codigo: imovel.logradouro_cod,
+        nome: imovel.logradouro_nome,
+        sequencia: "1",
+        vu_pvg: imovel.vu_pvg
+      },
+      fsq: cleanFactorValue(imovel.situacao, config.situacaoQuadra),
+      ftop: cleanFactorValue(imovel.topografia, config.topografia),
+      fpd: cleanFactorValue(imovel.pedologia, config.pedologia),
+      fpc: cleanFactorValue(imovel.tipo_padrao, config.padraoConstrutivo),
+      fec: cleanFactorValue(imovel.estrutura, config.elementoConstrutivo),
+      fcv: imovel.cond_vert > 0 ? cleanFactorValue('Apartamento - Normal', config.condominioVertical) : 'Não se aplica'
+    }));
+    setSearchTerm(imovel.logradouro_nome);
+    setImovelSearchTerm(imovel.inscricao);
+    setIsSearchingImovel(false);
   };
 
   const handleUseLocation = () => {
@@ -317,7 +391,7 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const dataStr = evt.target?.result;
         const workbook = XLSX.read(dataStr, { type: 'binary' });
@@ -325,23 +399,78 @@ const App: React.FC = () => {
         const worksheet = workbook.Sheets[sheetName];
         const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
         if (rawRows.length === 0) throw new Error("Planilha vazia.");
+        
         const firstRowKeys = Object.keys(rawRows[0]);
-        const keyMapping = {
-          codigo: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.codigo),
-          nome: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.nome),
-          sequencia: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.sequencia),
-          vu_pvg: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.vu_pvg)
-        };
-        if (!keyMapping.nome || !keyMapping.vu_pvg) throw new Error("Colunas necessárias não encontradas.");
-        const newList: Logradouro[] = rawRows.map((row: any) => ({
-          codigo: String(keyMapping.codigo ? row[keyMapping.codigo] : ""),
-          nome: String(row[keyMapping.nome!] || "").toUpperCase().trim(),
-          sequencia: String(keyMapping.sequencia ? row[keyMapping.sequencia] : "1"),
-          vu_pvg: parseFlexibleNumber(row[keyMapping.vu_pvg!])
-        })).filter(l => l.nome && !isNaN(l.vu_pvg) && l.vu_pvg > 0);
-        setLogradouros(newList);
-        setImportStatus({ type: 'success', message: `${newList.length} logradouros importados com sucesso.` });
-      } catch (err: any) { setImportStatus({ type: 'error', message: err.message }); }
+        const normalizedKeys = firstRowKeys.reduce((acc: any, key) => {
+          acc[normalizeHeader(key)] = key;
+          return acc;
+        }, {});
+
+        // Detect if it's the new complex format
+        const isInscricao = findKeyByAlias(firstRowKeys, ['inscricao']);
+        
+        if (isInscricao) {
+          // Complex Property Import
+          const imoveisList = rawRows.map((row: any) => {
+            const getVal = (alias: string) => row[normalizedKeys[normalizeHeader(alias)]];
+            return {
+              inscricao: String(getVal('inscricao')),
+              nome: String(getVal('m_nome')),
+              logradouro_cod: String(getVal('m_cod_logr')),
+              logradouro_nome: String(getVal('m_des_logr')).toUpperCase(),
+              numero: String(getVal('m_num_pr_1')),
+              complemento: String(getVal('m_comple_1')),
+              bairro: String(getVal('m_des_bair')),
+              area_terreno: parseFlexibleNumber(getVal('m_area_lot')),
+              area_construida: parseFlexibleNumber(getVal('m_area_con')),
+              testada: parseFlexibleNumber(getVal('m_testadap')),
+              situacao: String(getVal('m_situacao')),
+              topografia: String(getVal('m_topograf')),
+              pedologia: String(getVal('m_pedologi')),
+              tipo_padrao: String(getVal('m_tipo')),
+              estrutura: String(getVal('m_estrutur')),
+              cond_vert: parseInt(getVal('cond_vert')) || 0,
+              vu_pvg: parseFlexibleNumber(getVal('pvg_vu_pvg'))
+            };
+          }).filter(i => i.inscricao && i.inscricao !== "undefined");
+
+          const res = await fetch('/api/admin/imoveis/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imoveis: imoveisList })
+          });
+          const result = await res.json();
+          if (result.error) throw new Error(result.error);
+          setImportStatus({ type: 'success', message: `${imoveisList.length} imóveis importados com sucesso.` });
+        } else {
+          // Legacy Logradouro Import
+          const keyMapping = {
+            codigo: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.codigo),
+            nome: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.nome),
+            sequencia: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.sequencia),
+            vu_pvg: findKeyByAlias(firstRowKeys, COLUMN_ALIASES.vu_pvg)
+          };
+          if (!keyMapping.nome || !keyMapping.vu_pvg) throw new Error("Colunas necessárias não encontradas.");
+          const newList: Logradouro[] = rawRows.map((row: any) => ({
+            codigo: String(keyMapping.codigo ? row[keyMapping.codigo] : ""),
+            nome: String(row[keyMapping.nome!] || "").toUpperCase().trim(),
+            sequencia: String(keyMapping.sequencia ? row[keyMapping.sequencia] : "1"),
+            vu_pvg: parseFlexibleNumber(row[keyMapping.vu_pvg!])
+          })).filter(l => l.nome && !isNaN(l.vu_pvg) && l.vu_pvg > 0);
+
+          const res = await fetch('/api/admin/logradouros/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ logradouros: newList })
+          });
+          const result = await res.json();
+          if (result.error) throw new Error(result.error);
+          setImportStatus({ type: 'success', message: `${newList.length} logradouros importados com sucesso.` });
+        }
+      } catch (err: any) { 
+        console.error(err);
+        setImportStatus({ type: 'error', message: err.message }); 
+      }
       setTimeout(() => setImportStatus(null), 5000);
     };
     reader.readAsBinaryString(file);
@@ -555,6 +684,47 @@ const App: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              Buscar Imóvel por Inscrição
+            </h3>
+            <div className="relative">
+              <input
+                type="text"
+                value={imovelSearchTerm}
+                onFocus={() => setIsSearchingImovel(true)}
+                onChange={(e) => setImovelSearchTerm(e.target.value)}
+                placeholder="Digite a inscrição ou nome do proprietário..."
+                className="block w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all"
+              />
+              {isSearchingImovel && debouncedImovelSearchTerm.length >= 3 && (
+                <div className="absolute z-[60] w-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-80 overflow-y-auto ring-1 ring-black ring-opacity-5">
+                  {imoveis.length > 0 ? (
+                    imoveis.map((imovel, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleImovelSelect(imovel)}
+                        className="w-full text-left px-4 py-4 hover:bg-blue-50 flex justify-between items-center group transition-colors border-b last:border-b-0 border-gray-50"
+                      >
+                        <div>
+                          <p className="font-bold text-gray-900 group-hover:text-blue-700">{imovel.inscricao}</p>
+                          <p className="text-xs text-gray-500 uppercase">{imovel.nome}</p>
+                          <p className="text-[10px] text-gray-400 uppercase">{imovel.logradouro_nome}, {imovel.numero}</p>
+                        </div>
+                        <div className="text-right">
+                          <svg className="w-5 h-5 text-gray-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-gray-400">Nenhum imóvel encontrado.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100" ref={searchRef}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
