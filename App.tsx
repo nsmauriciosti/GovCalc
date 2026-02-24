@@ -299,23 +299,23 @@ const App: React.FC = () => {
   const handleImovelSelect = (imovel: any) => {
     setParams(prev => ({
       ...prev,
-      at: imovel.area_terreno || prev.at,
-      acb: imovel.area_construida || prev.acb,
-      testada: imovel.testada || prev.testada,
+      at: imovel.m_area_lot || prev.at,
+      acb: imovel.m_area_con || prev.acb,
+      testada: imovel.m_testadap || prev.testada,
       logradouro: {
-        codigo: imovel.logradouro_cod,
-        nome: imovel.logradouro_nome,
+        codigo: imovel.m_cod_logr,
+        nome: imovel.m_des_logr,
         sequencia: "1",
-        vu_pvg: imovel.vu_pvg
+        vu_pvg: imovel.pvg_vu_pvg
       },
-      fsq: cleanFactorValue(imovel.situacao, config.situacaoQuadra),
-      ftop: cleanFactorValue(imovel.topografia, config.topografia),
-      fpd: cleanFactorValue(imovel.pedologia, config.pedologia),
-      fpc: cleanFactorValue(imovel.tipo_padrao, config.padraoConstrutivo),
-      fec: cleanFactorValue(imovel.estrutura, config.elementoConstrutivo),
+      fsq: cleanFactorValue(imovel.m_situacao, config.situacaoQuadra),
+      ftop: cleanFactorValue(imovel.m_topograf, config.topografia),
+      fpd: cleanFactorValue(imovel.m_pedologi, config.pedologia),
+      fpc: cleanFactorValue(imovel.m_tipo, config.padraoConstrutivo),
+      fec: cleanFactorValue(imovel.m_estrutur, config.elementoConstrutivo),
       fcv: imovel.cond_vert > 0 ? cleanFactorValue('Apartamento - Normal', config.condominioVertical) : 'Não se aplica'
     }));
-    setSearchTerm(imovel.logradouro_nome);
+    setSearchTerm(imovel.m_des_logr);
     setImovelSearchTerm(imovel.inscricao);
     setIsSearchingImovel(false);
   };
@@ -415,22 +415,22 @@ const App: React.FC = () => {
             const getVal = (alias: string) => row[normalizedKeys[normalizeHeader(alias)]];
             return {
               inscricao: String(getVal('inscricao')),
-              nome: String(getVal('m_nome')),
-              logradouro_cod: String(getVal('m_cod_logr')),
-              logradouro_nome: String(getVal('m_des_logr')).toUpperCase(),
-              numero: String(getVal('m_num_pr_1')),
-              complemento: String(getVal('m_comple_1')),
-              bairro: String(getVal('m_des_bair')),
-              area_terreno: parseFlexibleNumber(getVal('m_area_lot')),
-              area_construida: parseFlexibleNumber(getVal('m_area_con')),
-              testada: parseFlexibleNumber(getVal('m_testadap')),
-              situacao: String(getVal('m_situacao')),
-              topografia: String(getVal('m_topograf')),
-              pedologia: String(getVal('m_pedologi')),
-              tipo_padrao: String(getVal('m_tipo')),
-              estrutura: String(getVal('m_estrutur')),
-              cond_vert: parseInt(getVal('cond_vert')) || 0,
-              vu_pvg: parseFlexibleNumber(getVal('pvg_vu_pvg'))
+              m_nome: String(getVal('m_nome')),
+              m_cod_logr: String(getVal('m_cod_logr')),
+              m_des_logr: String(getVal('m_des_logr')).toUpperCase(),
+              m_num_pr_1: String(getVal('m_num_pr_1')),
+              m_comple_1: String(getVal('m_comple_1')),
+              m_des_bair: String(getVal('m_des_bair')),
+              m_area_lot: parseFlexibleNumber(getVal('m_area_lot')),
+              m_area_con: parseFlexibleNumber(getVal('m_area_con')),
+              m_testadap: parseFlexibleNumber(getVal('m_testadap')),
+              m_situacao: String(getVal('m_situacao')),
+              m_topograf: String(getVal('m_topograf')),
+              m_pedologi: String(getVal('m_pedologi')),
+              m_tipo: String(getVal('m_tipo')),
+              m_estrutur: String(getVal('m_estrutur')),
+              cond_vert: parseFlexibleNumber(getVal('cond_vert')),
+              pvg_vu_pvg: parseFlexibleNumber(getVal('pvg_vu_pvg'))
             };
           }).filter(i => i.inscricao && i.inscricao !== "undefined");
 
@@ -709,8 +709,8 @@ const App: React.FC = () => {
                       >
                         <div>
                           <p className="font-bold text-gray-900 group-hover:text-blue-700">{imovel.inscricao}</p>
-                          <p className="text-xs text-gray-500 uppercase">{imovel.nome}</p>
-                          <p className="text-[10px] text-gray-400 uppercase">{imovel.logradouro_nome}, {imovel.numero}</p>
+                          <p className="text-xs text-gray-500 uppercase">{imovel.m_nome}</p>
+                          <p className="text-[10px] text-gray-400 uppercase">{imovel.m_des_logr}, {imovel.m_num_pr_1}</p>
                         </div>
                         <div className="text-right">
                           <svg className="w-5 h-5 text-gray-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>

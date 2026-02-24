@@ -14,22 +14,22 @@ export interface FactorOption {
 
 export interface Imovel {
   inscricao: string;
-  nome: string;
-  logradouro_cod: string;
-  logradouro_nome: string;
-  numero: string;
-  complemento: string;
-  bairro: string;
-  area_terreno: number;
-  area_construida: number;
-  testada: number;
-  situacao: string;
-  topografia: string;
-  pedologia: string;
-  tipo_padrao: string;
-  estrutura: string;
+  m_nome: string;
+  m_cod_logr: string;
+  m_des_logr: string;
+  m_num_pr_1: string;
+  m_comple_1: string;
+  m_des_bair: string;
+  m_area_lot: number;
+  m_area_con: number;
+  m_testadap: number;
+  m_situacao: string;
+  m_topograf: string;
+  m_pedologi: string;
+  m_tipo: string;
+  m_estrutur: string;
   cond_vert: number;
-  vu_pvg: number;
+  pvg_vu_pvg: number;
 }
 
 export interface AppConfig {

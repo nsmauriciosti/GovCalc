@@ -170,7 +170,7 @@ async function startServer() {
       const { data: imoveis, error } = await supabase
         .from('imoveis')
         .select('*')
-        .or(`inscricao.ilike.%${term}%,nome.ilike.%${term}%`)
+        .or(`inscricao.ilike.%${term}%,m_nome.ilike.%${term}%`)
         .limit(20);
       
       if (error) throw error;
