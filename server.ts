@@ -45,6 +45,13 @@ async function startServer() {
       { key: 'aiEnabled', value: 'false' },
       { key: 'faviconUrl', value: '/favicon.ico' }
     ]);
+  } else {
+    // Ensure faviconUrl exists even if table is not empty
+    const { data: faviconRow } = await supabase.from('config').select('*').eq('key', 'faviconUrl').maybeSingle();
+    if (!faviconRow) {
+      console.log("Adding missing faviconUrl to config...");
+      await supabase.from('config').insert({ key: 'faviconUrl', value: '/favicon.ico' });
+    }
   }
 
   const { count: factorsCount, error: factorsCheckError } = await supabase.from('factors').select('*', { count: 'exact', head: true });
